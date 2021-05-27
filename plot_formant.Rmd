@@ -1,0 +1,911 @@
+---
+title: "plot_formant.rmd"
+author: "Jojo Hu"
+date: "10/6/2020"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+# Plot model talkers' vowel space
+```{r, include = F}
+library(dplyr)
+
+read_normed <- 
+  function (file) {
+    file_name <- basename(file)
+    file_name <- str_extract(file_name, "\\S+(?=.csv?)")
+    
+    file <- read.csv(file, skip = 2)
+    file[, "name"] <- file_name
+    
+    return (file)
+    }
+
+```
+
+```{r, include = F}
+library(ggplot2)
+library(stringr)
+library(dplyr)
+
+# TO DO: Automate conversion from norm.txt to norm.csv and Delete the first two lines in the norm.csv files 
+
+plot_formant <- 
+  function (pattern) {
+    
+spB <-
+  list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-extract/",
+             pattern = pattern, full.names = T)
+
+if (pattern == "*norm.csv") {
+  spB <- lapply(spB, read_normed)
+  } else {
+    spB <- lapply(spB, read.csv)
+  }
+
+spB <- do.call(rbind, spB)
+
+
+return(spB)
+  }
+
+spB <- plot_formant("*norm.csv")
+
+spB$part_id <- str_extract(spB$name, "\\S+(?=_r)|rsr_orig|new_speaker")
+spB$task <- str_extract(spB$name, "rsr\\S{1}|rsr_orig|new_speaker")
+
+spB[which(str_detect(spB$part_id, "blast")), "group"] <- "TD"
+spB[which(str_detect(spB$part_id, "spoli")), "group"] <- "ASD"
+spB[which(str_detect(spB$name, "rsr_orig")), "group"] <- "control"
+spB[which(str_detect(spB$name, "new_speaker")), "group"] <- "high"
+```
+
+```{r}
+
+spB <-
+spB %>%
+    filter(stress == 1, 
+           !vowel %in% c("AY", "AW", "OY", "ER"),
+           !word %in% c("TO", "US", "ON")) %>%
+    mutate(word = tolower(word))
+
+
+spB$vowel <- factor(spB$vowel, levels = c("IY", "IH", "EY", "EH",  
+                                     "AA", "AO", "OW", "UH", "UW", "AH", "AE"))
+
+
+spB_norm <- plot_formant("*norm.csv")
+
+
+
+spB_dip <-
+spB_norm %>%
+    filter(stress == 1) %>%
+    mutate(word = tolower(word))
+
+
+spB_norm <-
+spB_norm %>%
+    filter(stress == 1, 
+           !vowel %in% c("AY", "AW", "OY", "ER"),
+           !word %in% c("TO", "US", "ON")) %>%
+    mutate(word = tolower(word))
+
+
+spB_norm$vowel <- factor(spB_norm$vowel, levels = c("IY", "IH", "EY", "EH", 
+                                     "AA", "AO", "OW", "UH", "UW", "AH", "AE"))
+
+unique(spB_norm$name)
+```
+
+
+
+
+
+```{r}
+# Plotting Unnormed Vowel Space
+spB[which(!spB$group == "ASD"),] %>%
+ggplot(aes(x = norm_F2, y = norm_F1, color = vowel)) + 
+    geom_point() + 
+    scale_x_reverse() + scale_y_reverse() +
+    theme_classic() + 
+  facet_grid(~group+task)
+
+spB[which(spB$group == "TD"),] %>%
+ggplot(aes(x = norm_F2, y = norm_F1, color = vowel)) + 
+    geom_point() + 
+    scale_x_reverse() + scale_y_reverse() +
+    theme_classic() + 
+  facet_grid(~group+task)
+
+spB[which(!spB$group == "TD"),] %>%
+ggplot(aes(x = norm_F2, y = norm_F1, color = vowel)) + 
+    geom_point() + 
+    scale_x_reverse() + scale_y_reverse() +
+    theme_classic() + 
+  facet_grid(~group+task)
+
+spB[which(spB$group == "ASD"),] %>%
+ggplot(aes(x = norm_F2, y = norm_F1, color = vowel)) + 
+    geom_point() + 
+    scale_x_reverse() + scale_y_reverse() +
+    theme_classic() + 
+  facet_grid(~group+task)
+```
+
+# Plot line plots of formants
+```{r}
+library(ggplot2)
+library(stringr)
+library(reshape)
+# Clean up here:
+spB_dip[which(str_detect(spB_dip$name, "blast")), "group"] <- "TD"
+spB_dip[which(str_detect(spB_dip$name, "spoli")), "group"] <- "ASD"
+
+normCol <- colnames(spB_dip)[which(str_detect(colnames(spB_dip), "norm_\\S{2}."))]
+
+normF <- spB_dip[,c("name", "vowel", "stress", "group", normCol)]
+
+normFL <- melt(normF, id.vars = c("name", "group", "vowel", "stress"))
+
+normFL$percentage <- str_extract(normFL$variable, "(?<=norm_\\S{2})\\S+(?=.)")
+
+normFL$speaker <- str_extract(normFL$name, "\\S+(?=_output_norm)")
+
+normFL$formant <- str_extract(normFL$variable, "(?<=_)\\S{2}(?=.?)")
+
+
+linePlotMean <- list()
+
+for (i in 1:length(unique(normFL$vowel))) {
+  selected_vowel <- unique(normFL$vowel)[i]
+linePlotMean[[i]] <-
+    normFL %>%
+  filter(vowel == selected_vowel) %>%
+  ggplot(aes(x = percentage, y = value, color = vowel, group = vowel)) +
+  geom_point() +
+  geom_line(stat ="summary", fun.y = "mean") +
+  facet_grid(~formant+group)
+}
+
+linePlotMean
+```
+
+
+# Plot clustered normed F1 and F2
+```{r}
+# Clean up here:
+spB_norm[which(str_detect(spB_norm$name, "blast")), "group"] <- "TD"
+spB_norm[which(str_detect(spB_norm$name, "spoli")), "group"] <- "ASD"
+spB_norm[which(str_detect(spB_norm$name, "rsr_orig")), "group"] <- "control"
+spB_norm[which(str_detect(spB_norm$name, "new_speaker")), "group"] <- "high"
+
+ggplot(spB_norm, aes(x = norm_F2, y = norm_F1, color = vowel, label = vowel)) + 
+    geom_point(alpha = 0.5) + 
+    stat_ellipse() + 
+    scale_x_reverse() + scale_y_reverse() + 
+    scale_color_discrete(breaks = c("IY", "IH", "EY", "EH", "AE", 
+                                     "AA", "AO", "OW", "UH", "UW", "AH")) +
+  scale_color_discrete(breaks = c("IY", "IH", "EY", "EH", "AE", 
+                                     "AA", "AO", "OW", "UH", "UW", "AH")) +
+  facet_grid(~group) +
+  theme_classic()
+
+
+# ggsave("f1_f2.png",bg="transparent",width = 30, height = 15, units = "cm")
+```
+
+# Compare duration of speakers
+```{r, include = F}
+library(dplyr)
+
+senDur <- read.csv("/Users/jojohu/Documents/Time/stimuli/rsr_stim/sentence_duration.csv")
+
+senDur$duration <- senDur$end - senDur$begin
+
+senDur %>%
+  filter(!sound == "sp") %>%
+  group_by(speaker) %>%
+  dplyr::summarise(sum = sum(duration))
+```
+
+
+
+
+Plot the mean unnormed F1 and F2 of each model talker
+```{r, eval = F, include = F}
+library(reshape)
+
+spB$name <- as.factor(spB$name)
+spB$vowel <- as.factor(spB$vowel)
+
+means <-
+  spB %>%
+    group_by(name,vowel) %>%
+    dplyr::summarise(mean_F1 = mean(F1),
+              mean_F2 = mean(F2)) 
+
+mFormant <- data.frame(means)
+
+mFormant <- melt(mFormant, by = c("name", "vowel"))
+
+cast(mFormant, variable+vowel~name)
+```
+
+
+```{r, eval = F, include = F}
+library(ggplot2)
+ggplot(means, aes(x = mean_F2, y = mean_F1, label = vowel)) + 
+    geom_label(size = 3, alpha = 0.5) + 
+    # scale_shape_manual(values=1:nlevels(means$vowel)) +
+    scale_x_reverse() + scale_y_reverse() +
+    theme_classic() + 
+  facet_grid(~name)
+
+```
+
+
+# Match sentence number (need to use ELAN instead)
+```{r}
+rowDiffT <- 
+  spB %>% 
+    group_by(part_id, task) %>%
+    mutate(difference=beg-lag(beg,default=first(beg)))
+
+# Only running this for control model talker condition
+
+rowDiffTC <- rowDiffT[which(str_detect(rowDiffT$part_id, "spoli_c|blast_c") & rowDiffT$task =="rsr1"),]
+
+rowDiffTModel <- rowDiffT[which(str_detect(rowDiffT$part_id, "rsr_orig")),]
+
+estimateSen <- function(DF, second) {
+    n = 0
+    cDF <- list()
+    for(i in 1:length(unique(DF$part_id))) {
+      n = n + 1
+      currentDF <- DF[which(DF$part_id == unique(DF$part_id)[i]),]
+      currentDF[which(currentDF$difference > second), "sentence_estimate"] <- 
+        seq(from = 2, to = length(which(currentDF$difference > second)) + 1)
+      
+      currentDF$sentence_estimate[1] <- 1
+      
+      cDF[[n]] <- currentDF
+    }
+  return(cDF)
+}
+
+rowDiffTC <- do.call(rbind, estimateSen(rowDiffTC, 5))
+rowDiffTModel <- do.call(rbind, estimateSen(rowDiffTModel, 5))
+
+rowDiffT <- rbind(rowDiffTC, rowDiffTModel)
+
+rowDiffT <- 
+  rowDiffT %>% 
+    tidyr::fill(sentence_estimate)
+```
+
+
+```{r}
+formantV <- read.csv("/Users/jojohu/Documents/Time/stimuli/word_vowel_examplars.csv")
+demo <- read.csv("/Users/jojohu/Documents/Qlab/blast_online_data/demographic_data/online_demo_all.csv")[c("part_id", "group", "gender", "age_at_web_month", "age_at_web_year")]
+rsr1Score <- read.csv("/Users/jojohu/Documents/Qlab/blast_online_data/RSR Online Home Scores  - blast scores (rsr_rsr1).csv")[c("participant.id", "raw.score", "standard")]
+rsr1ScoreSpoli <- read.csv("/Users/jojohu/Documents/Qlab/blast_online_data/RSR Online Home Scores  - spoli scores (rsr_rsr1).csv")[c("participant.id", "raw.score", "standard")]
+
+rsr1Score <- rbind(rsr1Score, rsr1ScoreSpoli)
+
+formantV <- formantV[which(formantV$arphabet %in% c("IH", "IY", "EH", "AE", "AA", "AH", "UH", "UW", "AO")),]
+
+arphabetVowel <- unique(formantV[,c("vowel", "arphabet")])
+
+formantDF <- rowDiffT[which(rowDiffT$word %in% unique(formantV$praat_word)),]
+
+formantDF <- formantDF[which(formantDF$vowel %in% c("IH", "IY", "EH", "AE", "AA", "AH", "UH", "UW", "AO")),]
+
+formantDF <- merge(formantDF, demo, all.x = T)
+
+formantDF[which(formantDF$part_id == "blast_c_488"), "gender"] <- "M"
+formantDF[which(formantDF$part_id == "blast_c_488"), "age_at_web_year"] <- 8.55
+formantDF[which(formantDF$part_id == "blast_c_488"), "age_at_web_month"] <- 8.55*12
+
+formantDF[which(formantDF$part_id == "spoli_c_617"), "gender"] <- "M"
+formantDF[which(formantDF$part_id == "spoli_c_617"), "age_at_web_year"] <- 7.89
+formantDF[which(formantDF$part_id == "spoli_c_617"), "age_at_web_month"] <- 7.89*12
+
+
+formantDF <- merge(formantDF, rsr1Score, by.x = "part_id", by.y = "participant.id", all.x = T)
+
+colnames(formantDF)[which(colnames(formantDF) == "vowel")] <- "arphabet"
+
+formantDF <- merge(formantDF, arphabetVowel, all.x = T)
+
+# formantDF <- formantDF[-which(is.na(formantDF$vowel)),]
+vowelInDF <- 
+formantDF %>%
+  group_by(vowel, word) %>%
+  summarise_each(funs(mean), norm_F1, norm_F2)
+
+vowelInDF <- vowelInDF[,c("vowel", "word")]
+
+# write.csv(vowelInDF, "vowel_list.csv")
+
+formantDF %>%
+  group_by(group, gender) %>%
+  summarise(Mean = round(mean(age_at_web_year), 2), SD = round(sd(age_at_web_year), 2), Min = round(min(age_at_web_year), 2), Max = round(max(age_at_web_year), 2), N = length(unique(part_id)))
+
+t.test(formantDF[which(formantDF$group == "ASD"), "age_at_web_year"], formantDF[which(formantDF$group == "TD"), "age_at_web_year"])
+
+vowelCountSubj <- 
+formantDF %>%
+  group_by(group, vowel) %>%
+  summarise(mean(norm_F1), mean(norm_F2), N = n(), Nsuj = length(unique(part_id)), NtokenPerSubj = N/Nsuj)
+
+# write.csv(vowelCountSubj, "vowelCountSubj.csv")
+
+ # write.csv(ageDescrip, "age.csv")
+```
+
+
+# Calculate Euclidean Distance to Model Talker (squareroot((wordmodel’s F1 - wordparticipant’s F1)2 + (wordmodel’s F2 - wordparticipant’s F2)2)
+```{r}
+formantDFM <- formantDF[which(formantDF$part_id == "rsr_orig"),]
+formantDFC <- formantDF[which(str_detect(formantDF$part_id, "blast|spoli")),]
+
+# Add a column for actual sentence number in the list for children, so sentence number can be matched to model talker
+# Now, the mean of duplicated words of model talker across sentences are extracted to do the comparison, not recommended:
+formantDFM_mean <- 
+formantDFM %>%
+  group_by(word) %>%
+   summarise_each(funs(mean), norm_F1, norm_F2)
+
+distance <- list()
+n = 0
+
+for(i in 1:nrow(formantDFC)) {
+  n = n + 1
+      childWord <- formantDFC[i,]$word
+      childSen <- formantDFC[i,]$sentence_estimate
+      childF1 <- formantDFC[i,]$norm_F1
+      childF2 <- formantDFC[i,]$norm_F2
+      
+      modelF1 <- formantDFM_mean[which(formantDFM_mean$word == childWord 
+                                       # & formantDFM_mean$sentence_estimate == childSen
+                                       ),]$norm_F1
+      modelF2 <- formantDFM_mean[which(formantDFM_mean$word == childWord 
+                                       # & formantDFM_mean$sentence_estimate == childSen
+                                       ),]$norm_F2
+    
+      
+      distanceTemp <- sqrt((modelF1 - childF1)^2 + (modelF2 - childF2)^2)
+      
+      if(length(modelF1) == 0 | length(modelF2) == 0) {
+        distanceTemp <- NA
+      }
+     
+      
+      distance[[n]] <- distanceTemp
+      print(paste(i, distanceTemp))
+}
+
+formantDFC$distance <- do.call(rbind, distance)
+
+
+
+formantDFC <- 
+  formantDFC %>% 
+  group_by(part_id, vowel)  %>% 
+        arrange(
+          part_id,
+          vowel,
+            sentence_estimate
+        ) %>%
+  mutate(order = row_number())
+
+
+formantDFC$sentence_estimate <- as.numeric(as.character(formantDFC$sentence_estimate))
+formantDFC$order <- as.numeric(as.character(formantDFC$order))
+
+meanDistance <-
+formantDFC %>% 
+  group_by(group, vowel)  %>% 
+  summarise(mean(distance, na.rm = T))
+
+# write.csv(meanDistance, "meanDistance.csv")
+
+library(lmerTest)
+m1 <- lmer(distance ~  group*order + age_at_web_month + (order|vowel), data = formantDFC)
+summary(m1)
+
+m2 <- lmer(distance ~  group*order*vowel + (1|part_id), data = formantDFC)
+summary(m2)
+
+cor.test(formantDFC$distance, formantDFC$age_at_web_month)
+cor.test(formantDFC[which(formantDF$group == "ASD"),]$distance, formantDFC[which(formantDF$group == "ASD"),]$age_at_web_month)
+cor.test(formantDFC[which(formantDF$group == "TD"),]$distance, formantDFC[which(formantDF$group == "TD"),]$age_at_web_month)
+
+```
+
+
+```{r}
+formantDFC %>%
+   filter(group == "ASD") %>%
+  ggplot(aes(x = order, y = distance, color = vowel)) +
+  geom_line(stat ="summary", fun.y = "mean") +
+  labs(title = paste("Euclidean Distance Change Across Repetitions in children with ASD"),
+         y = "Mean Euclidean Distance",  # Change x-axis label
+         x = "Order of Vowel Occurrence") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  )
+
+ggsave("asd_distance.png", dpi = 150)
+
+formantDFC %>%
+   filter(group == "TD") %>%
+  ggplot(aes(x = order, y = distance, color = vowel)) +
+  geom_line(stat ="summary", fun.y = "mean") +
+  labs(title = paste("Euclidean Distance Change Across Repetitions in TD children"),
+         y = "Mean Euclidean Distance",  # Change x-axis label
+         x = "Order of Vowel Occurrence") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  )
+
+ggsave("td_distance.png", dpi = 150)
+```
+
+
+```{r}
+
+library(dplyr)
+plotDistance <- list()
+
+for (i in 1:length(unique(formantDFC$vowel))) {
+  selected_vowel <- unique(formantDFC$vowel)[i]
+plotDistance[[i]] <-
+  formantDFC %>%
+  filter(vowel == selected_vowel) %>%
+  ggplot(aes(x = order, y = distance, color = group)) +
+  geom_point() +
+  # geom_line(stat ="summary", fun.y = "mean") +
+   stat_summary(fun.data=formantDFC) + 
+  geom_smooth(method='lm', formula= y~x) +
+  labs(title = paste("Euclidean Distance Change Across Productions of", selected_vowel),
+         y = "Mean Euclidean Distance",  # Change x-axis label
+         x = "Order of Vowel Production") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  ) + 
+      scale_x_continuous(breaks=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
+}
+
+for (i in 1:length(plotDistance)) {
+  ggsave(paste0(i, ".png"), plot = plotDistance[[i]], dpi = 100)
+}
+
+
+
+```
+
+
+# Plot Vowel Space with Mean Formants
+```{r}
+formantMean <-
+  formantDF %>%
+    group_by(part_id, group, gender, vowel) %>%
+    filter(!(abs(norm_F1 - mean(norm_F1)) > 3*sd(norm_F1))) %>%
+    filter(!(abs(norm_F2 - mean(norm_F2)) > 3*sd(norm_F2))) %>%
+  summarise_each(funs(mean), norm_F1, norm_F2)
+
+print(formantMean)
+
+formantMean[which(formantMean$group == "TD"),] %>%
+  ggplot(aes(x = norm_F2, y = norm_F1)) + 
+      geom_label(aes(label = vowel, color = vowel), size = 5, alpha = 0.5, show.legend = FALSE) + 
+      scale_x_reverse() + scale_y_reverse() +
+      theme_classic() + 
+    labs(title = "Vowel Space of TD Children",
+         x = "Mean F2 (Hz)",  # Change x-axis label
+         y = "Mean F1 (Hz)") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  )
+
+ggsave("td_vowel_space.png", width = 10, height = 8)
+
+
+formantMean[which(formantMean$group == "ASD"),] %>%
+  ggplot(aes(x = norm_F2, y = norm_F1)) + 
+      geom_label(aes(label = vowel, color = vowel), size = 5, alpha = 0.5, show.legend = FALSE) + 
+      scale_x_reverse() + scale_y_reverse() +
+      theme_classic() + 
+    labs(title = " Vowel Space of Children with ASD",
+         x = "Mean F2 (Hz)",  # Change x-axis label
+         y = "Mean F1 (Hz)") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  )
+
+ggsave("asd_vowel_space.png", width = 10, height = 8)
+
+
+
+formantMean[which(formantMean$group == "control"),] %>%
+  ggplot(aes(x = norm_F2, y = norm_F1)) + 
+      geom_label(aes(label = vowel, color = vowel), size = 5, alpha = 0.5, show.legend = FALSE) + 
+      scale_x_reverse() + scale_y_reverse() +
+      theme_classic() + 
+    labs(title = " Vowel Space of the Model Talker",
+         x = "Mean F2 (Hz)",  # Change x-axis label
+         y = "Mean F1 (Hz)") +
+    theme(plot.title = element_text(hjust = 0.3)) +
+  theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text=element_text(size=12, face = "bold")
+        ) +
+  theme(legend.text=element_text(size=14, face="bold"),
+        legend.title=element_text(size=15, face="bold")) +
+   theme(
+    panel.background = element_rect(fill = "white"),         # Set plot background to white
+    legend.key  = element_rect(fill = "white"),              # Set legend item backgrounds to white
+    axis.line.x = element_line(colour = "black", size = 1),  # Add line to x axis
+    axis.line.y = element_line(colour = "black", size = 1)   # Add line to y axis
+  )
+
+ggsave("model_vowel_space.png", width = 10, height = 8)
+
+```
+
+
+
+
+
+
+# Data Prep for plotting pitch
+```{r}
+# Read in prosody pro output
+
+pList <- list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/", 
+                    pattern = "*\\.f0$|.normtimef0$")
+
+pList <- as.character(pList)
+
+library(stringr)
+
+newName <- paste0(pList, ".txt")
+
+file.copy(from = file.path("/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/", pList),
+                      to = file.path("/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/", newName))
+
+pitchF <-  list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align",
+             pattern = "*\\.f0.txt$", full.names = T)
+
+normTimeF <-  list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align",
+             pattern = "*\\.normtimef0.txt$", full.names = T)
+
+read_txt <- function(file) {
+  file_name <- basename(file)
+  file_name <- str_extract(file_name, "\\S+(?=.txt?)|\\S+(?=.normtimeIntensity?)")
+  
+  file <- read.csv(file,  sep ="\t", stringsAsFactors = F, header = T)
+  file[, "name"] <- file_name
+  
+  return(file)
+}
+
+fZero <- lapply(pitchF, read_txt)
+normfZero <- lapply(normTimeF, read_txt)
+
+fZero <- do.call(rbind, fZero)
+normZero <- do.call(rbind, normfZero)
+
+# Norm time f0 and f0 do not have the same number of rows...
+library(dplyr)
+fZero %>%
+  group_by(name) %>%
+  dplyr::summarise(n = n())
+
+normZero %>%
+  group_by(name) %>%
+  dplyr::summarise(n = n())
+
+
+normZero$part_id <- str_extract(normZero$name, "\\S+(?=_r)")
+normZero$task <- str_extract(normZero$name, "rsr\\S{1}")
+
+
+spB$rowLabel <- paste0(spB$vowel, spB$stress)
+
+normZero[which(normZero$rowLabel %in% unique(spB$rowLabel)),]
+
+normZero$stress <- str_extract(normZero$rowLabel, "\\d")
+normZero$vowel <- str_remove(normZero$rowLabel, "\\d")
+normZero[which(str_detect(normZero$part_id, "blast")), "group"] <- "TD"
+normZero[which(str_detect(normZero$part_id, "spoli")), "group"] <- "ASD"
+
+
+stressed_normZero <-
+normZero %>%
+    filter(stress == 1, 
+           vowel %in% c("IY", "IH", "EY", "EH",  
+                                     "AA", "AO", "OW", "UH", "UW", "AH", "AE")) 
+
+
+normZero %>%
+    filter(stress == 1, 
+           vowel %in% c("IY", "IH", "EY", "EH",  
+                                     "AA", "AO", "OW", "UH", "UW", "AH", "AE")) %>%
+  group_by(part_id, task) %>%
+  dplyr::summarise(mean(F0))
+
+stressed_normZero %>%
+ ggplot(aes(x = task, y = F0)) +
+  geom_bar(
+    aes(fill = group),
+    position = position_dodge(),
+    width = 0.9,
+    stat = "summary",
+    fun.y = "mean",
+  ) 
+
+stressed_normZero %>%
+ ggplot(aes(x = task, y = F0)) +
+  geom_bar(
+    aes(fill = group),
+    position = position_dodge(),
+    width = 0.9,
+    stat = "summary",
+    fun.y = "mean",
+  ) + 
+    facet_grid(~vowel)
+
+```
+
+# Coarticulation analysis
+```{r}
+lableList <- list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/", 
+                        pattern = "normtimeIntensity$", full.names = T)
+
+labelF <- lapply(lableList, read_txt)
+
+labelF <- do.call(rbind, labelF)
+
+# Double check if the cbind matches the rowLabel and the sounds correctly
+labeledFzero <- cbind(normZero, labelF[,c("ActualTime", "Intensity")])
+
+labeledFzero <- labeledFzero[which(labeledFzero$stress == 1),] 
+  
+n = 0
+
+pitchFormant <- list()
+
+for(i in 1:length(unique(labeledFzero$name))) {
+  n = n + 1
+  iPitch <- labeledFzero[which(labeledFzero$name == unique(labeledFzero$name)[i]),]
+  iFormant <- spB[which(spB$part_id == unique(iPitch$part_id) & spB$task == unique(iPitch$task)),]
+  
+  startRow <- which(iPitch$ActualTime %in% iFormant$beg)
+  
+  iPitch <- iPitch[c(sapply(startRow, function(x) seq(x, x + 9))),]
+  
+  pitchFormant[[n]] <- cbind(prosodyPro = iPitch, fave = iFormant[rep(seq_len(nrow(iFormant)), each = 10), ])
+  
+}
+
+pitchFormant <- do.call(rbind, pitchFormant)
+
+stressed_normZero <-
+pitchFormant %>%
+    filter(fave.stress == 1, 
+           fave.vowel %in% c("IY", "IH", "EY", "EH",  
+                                     "AA", "AO", "OW", "UH", "UW", "AH", "AE")) 
+
+pitchWord <- 
+stressed_normZero %>%
+  group_by(fave.group, fave.task, fave.word, fave.vowel) %>%
+  dplyr::summarise(mean(prosodyPro.F0))
+
+stressed_normZero %>%
+ ggplot(aes(x = fave.task, y = prosodyPro.F0)) +
+  geom_bar(
+    aes(fill = fave.word),
+    position = position_dodge(width = 0.1),
+   
+    stat = "summary",
+    fun.y = "mean"
+  ) + 
+  facet_grid(~fave.group)
+
+
+
+stressed_normZero[which(stressed_normZero$fave.group == "TD"),] %>%
+  ggplot(aes(x = fave.norm_F2, y = fave.norm_F1, color = fave.word)) + 
+      geom_point() + 
+      scale_x_reverse() + scale_y_reverse() +
+      theme_classic() + 
+    facet_grid(~fave.task)
+
+
+stressed_normZero[which(stressed_normZero$fave.group == "ASD"),] %>%
+  ggplot(aes(x = fave.norm_F2, y = fave.norm_F1, color = fave.word)) + 
+      geom_point() + 
+      scale_x_reverse() + scale_y_reverse() +
+      theme_classic() + 
+    facet_grid(~fave.task)
+
+unique(stressed_normZero$fave.part_id)
+```
+
+```{r}
+pitchTrackList <- list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-extract", 
+                        pattern = "*pitch_contour_results_hz.csv", full.names = T)
+
+pitchTrackF <- lapply(pitchTrackList, read.csv)
+
+pitchTrackF <- do.call(rbind, pitchTrackF)
+
+colnames(pitchTrackF) <- c("file", "label", "beginT", "duration", 0, 20, 40, 60, 80, 100, "extra")
+
+pitchTrackF <- pitchTrackF[,!colnames(pitchTrackF) %in% "extra"]
+
+
+pitchTrackF[,c( "beginT", "duration", "0", "20", "40", "60", "80", "100")] <-
+  lapply(pitchTrackF[, c("beginT", "duration", "0", "20", "40", "60", "80", "100")], 
+         function(x) {
+           as.numeric(as.character(x))
+  })
+
+pitchTrackF$label <- as.character(pitchTrackF$label)
+pitchTrackF$file <- as.character(pitchTrackF$file)
+
+pitchTrackStressed <- pitchTrackF[which(str_detect(pitchTrackF$label, "1")),]
+
+
+
+pitchTrackStressed$stressed <- str_extract(pitchTrackStressed$label, "1")
+pitchTrackStressed$vowel <- str_remove(pitchTrackStressed$label, "1")
+pitchTrackStressed$part_id <- str_extract(pitchTrackStressed$file, "\\S+(?=_rsr)|rsr_orig|new_speaker")
+pitchTrackStressed$task <- str_extract(pitchTrackStressed$file, "rsr1|rsr2|rsr_orig|new_speaker")
+
+pitchTrackStressed <-
+  merge(stressed_normZero, pitchTrackStressed, by.x = c("fave.part_id", "fave.task", "fave.beg"), 
+        by.y = c("part_id", "task", "beginT"), all.x = T)
+```
+
+
+# Check whether below works. Sentence match is already done above.
+
+```{r}
+pitchTrack <- rowDiffT[,c("fave.part_id", "fave.task", "vowel", "fave.beg", "sentence_estimate", "0", "20", "40", "60", "80", "100")]
+
+pitchTrackL <- reshape2::melt(pitchTrack, id.vars = c("fave.part_id", "fave.task", "vowel", "fave.beg", "sentence_estimate"))
+
+outlier <- mean(pitchTrackL$value, na.rm = T) + 3*sd(pitchTrackL$value, na.rm = T)
+
+pitchTrackL <- pitchTrackL[-which(pitchTrackL$value > outlier),]
+
+pitchTrackL[which(pitchTrackL$fave.part_id == "blast_c_484" & pitchTrackL$sentence_estimate == 2),] %>%
+  ggplot(aes(x = fave.beg, y = value, color = fave.task)) +
+  geom_point() +
+  geom_line(stat ="summary", fun.y = "mean")
+
+
+
+
+
+plotPitchTrack <- 
+function(part_id, i) {
+pitchTrackL[which(pitchTrackL$fave.part_id == part_id & pitchTrackL$sentence_estimate == i),] %>%
+  ggplot(aes(x = fave.beg, y = value, color = fave.task)) +
+  geom_point() +
+  geom_line(stat ="summary", fun.y = "mean")
+}
+
+
+
+# write.csv(pitchTrackStressed, "/Users/jojohu/Documents/Time/pitchTrackStressed.csv")
+
+
+```
+
+
+# Match the sentence numbers
+```{r}
+read_txt_sentence <- function(file) {
+  file_name <- basename(file)
+  file_name <- str_extract(file_name, "\\S+(?=.txt?)")
+  
+  file <- read.csv(file,  sep ="\t", stringsAsFactors = F, header = F)
+  file <- file[,1:5]
+  file[, "name"] <- file_name
+  
+  return(file)
+}
+
+sentenceF <- list.files(path = "/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align", 
+                    pattern = "[0-9][0-9].txt$", full.names = T)
+
+sentenceDF <- list()
+tempIndex <- c(1:12, 14:length(sentenceF))
+for(i in tempIndex) {
+  sentenceDF[[i]] <- read_txt_sentence(sentenceF[i])
+}
+
+# This file's encoding has a problem:
+tempF <- read.csv("/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/spoli_c_627_rsr1_mar42021_manual.csv", header = F)
+tempF$name <- "spoli_c_627_rsr1_mar42021"
+
+sentenceDF <- do.call(rbind, sentenceDF)
+
+sentenceDF <- rbind(sentenceDF, tempF)
+
+sentenceDF <- sentenceDF[,c(3:6)]
+  
+colnames(sentenceDF) <- c("sentence_beg", "sentence_end", "sentence", "file")
+
+
+```
+
+
