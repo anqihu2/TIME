@@ -20,6 +20,8 @@ import parselmouth
 
 parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/read_file.praat','/Volumes/data/projects/time/time_exp1/data/child/','.wav','/Volumes/data/projects/time/analysis/mono_left','/Volumes/data/projects/time/analysis/mono_right')
 ```
+parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/read_file.praat','/Volumes/data/projects/time/analysis/clean_data','.wav','/Volumes/data/projects/time/analysis/mono_left','/Volumes/data/projects/time/analysis/mono_right')
+
 
 No need to use praat wrapper? Call praat directly in terminal?
 
@@ -73,6 +75,8 @@ for i in /Volumes/data/projects/time/analysis/mono_left/*.txt; do
 done
 ```
 
+## If the immediately preceding chunk takes too long to loop through, use this to run individual subjects:
+python2 /Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/FAAValign.py /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022.wav /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022.txt /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022_phone_word.TextGrid
 
 ## Step 5.1: Force align the annotated data for model talkers 
 
@@ -97,6 +101,8 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/mono_left/'):
 ```
 
 ```python
+import parselmouth
+
 parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/remove_textgrid_tier.praat',
 '/Volumes/data/projects/time/analysis/mono_left/phone_textgrid_temp', 1, 2, '/Volumes/data/projects/time/analysis/mono_left/phone_textgrid/')
 ```
@@ -211,7 +217,7 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/mono_left/wav_temp/
 ## Step 8: Align sentence numbers with forced aligned output
 
 ```python
-# Move the files phone_word level textfrids that are not FAVE-format converted to a temp folder (temp folder is local now as the praat script is too slow on server) 
+# Move the files phone_word level textfrids that are not FAVE-format converted to a temp folder 
 import os
 import re
 import shutil

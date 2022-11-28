@@ -1,0 +1,129 @@
+---
+title: "rsr_demo"
+author: "Jojo Hu"
+date: "9/25/2021"
+output: html_document
+---
+
+## DO NOT PUT ON GITHUB
+## Manually Change Date Formatting to YYYY-MM-DD in all three files (not necessary all the time; check the data output in the script here)
+```{r}
+in_lab_date <-
+  read.csv("/Volumes/data/projects/time/analysis/demo/QLABBLASTProject-DOBinlabsl_DATA_2022-04-26_2239.csv")
+
+online_date <-
+  read.csv("/Volumes/data/projects/time/analysis/demo/QLABBLASTProject-DOBwebsl_DATA_2022-04-19_1547.csv")
+
+online_date <- rbind(in_lab_date, online_date)
+
+online_date$group <- as.character(online_date$group)
+online_date$participant_gender <- as.character(online_date$participant_gender)
+
+online_date$group <- plyr::revalue(online_date$group, c("1" = "ASD",
+                                                  "5" = "TD",
+                                                  "4" = "Sib"))
+
+online_date$participant_gender <- plyr::revalue(online_date$participant_gender, 
+                                          c("1" = "F",
+                                            "2" = "M"))
+
+online_date <- online_date[,c("record_id", "group", "participant_gender", "participant_dob"),]
+
+colnames(online_date) <- c("part_id", "group", "gender", "dob")
+
+online_date <- online_date[which(!is.na(online_date$gender)),]
+```
+
+```{r}
+smile_demo <- read.csv("/Volumes/data/projects/time/analysis/demo/MINDSPLASH-Smilechilddob_DATA_2022-04-26_2240.csv")
+
+smile_demo$group <- ifelse(smile_demo$participant_group___1 == 1, "TD", "ASD")
+
+smile_demo$participant_gender <- as.character(smile_demo$participant_gender)
+# SMILE redcap has gender coding reversed... Fix this somewhere
+smile_demo$participant_gender <- plyr::revalue(smile_demo$participant_gender, 
+                                          c("1" = "M",
+                                            "2" = "F"))
+
+smile_demo <- smile_demo[,c("record_id", "group", "participant_gender", "participant_dob")]
+
+colnames(smile_demo) <- c("part_id", "group", "gender", "dob")
+
+all_date <- rbind(online_date, smile_demo)
+```
+
+
+```{r}
+sList <- list.files(path = "/Volumes/data/projects/time/analysis/mono_left", pattern = "*\\.wav$")
+sList <- data.frame(sList)
+sList$part_id <- str_extract(sList$sList, "(spoli|blast|smile)\\S+(?=_rsr(1|2)\\S+.wav)")
+
+exp1 <- all_date[which(all_date$part_id %in% unique(sList$part_id)),]
+setdiff(exp1$part_id, all_date$part_id)
+
+# Match the follow up experiment IDs
+all_date_followup <- all_date
+all_date_followup$part_id <- paste0(all_date_followup$part_id, "_followup")
+exp2 <- all_date_followup[which(all_date_followup$part_id %in% unique(sList$part_id)),]
+setdiff(exp2$part_id, all_date_followup$part_id)
+
+sList$date_rsr <- str_extract(sList$sList, "(?<=rsr(1|2)_)\\S{8,9}(?=.wav)")
+
+wrongFormatD <- sList$date_rsr[which(str_count(sList$date_rsr) == 8)]
+
+sList$date_rsr[which(str_count(sList$date_rsr) == 8)] <- gsub('^([a-z]{3})([0-9]+)$', '\\10\\2', wrongFormatD)
+
+sList$date_rsr <- as.Date(sList$date_rsr, "%b%d%Y")
+
+sList$task <- str_extract(sList$sList, "rsr(1|2)")
+
+all_date <- rbind(exp1, exp2)
+
+all_date <- unique(all_date)
+
+online_date <- merge(sList, all_date, by.x = "part_id", by.y = "part_id", all.x = T)
+```
+
+
+```{r}
+#Calculate age in days
+for (i in 1:length(online_date$dob)) { 
+if (!is.na(online_date[i, "date_rsr"])) {
+  online_date[i, "age_rsr_days"] <-
+    difftime(online_date[i, "date_rsr"], online_date[i, "dob"],
+             units = c("days"))
+}
+}
+
+
+#Calculate age in months---------------------------------------------------------------------------------------------
+#From Stackoverflow: https://stackoverflow.com/questions/1995933/number-of-months-between-two-dates
+#Answer by https://stackoverflow.com/users/143305/dirk-eddelbuettel
+#Credit to: Dirk Eddelbuettel
+
+# turn a date into a 'monthnumber' relative to an origin
+monnb <- function(d) {
+  lt <- as.POSIXlt(as.Date(d, origin="1900-01-01"))
+  lt$year*12 + lt$mon
+  } 
+# compute a month difference as a difference between two monnb's
+mondf <- function(d1, d2) { 
+  monnb(d2) - monnb(d1) 
+}
+
+
+#Put month difference into a new column
+for (i in 1:length(online_date$dob)) { 
+  if (!is.na(online_date[i, "date_rsr"])) {
+    online_date[i, "age_rsr_month"] <-
+      mondf(online_date$dob[i], online_date$date_rsr[i])
+  } 
+}
+
+online_date$age_rsr_year <- online_date$age_rsr_month/12
+
+online_date <- online_date[which(!is.na(online_date$age_rsr_month)),]
+
+write.csv(online_date[,c("part_id", "group", "gender", "task", "age_rsr_month", "age_rsr_year", "date_rsr")], 
+          "/Volumes/data/projects/time/analysis/demo/rsr_age.csv")
+```
