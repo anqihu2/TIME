@@ -1,0 +1,399 @@
+---
+title: "sound_preprocess"
+author: "Jojo Hu"
+date: "6/27/2021"
+output: html_document
+---
+
+## Step 1: Get the phone-word level fave input by converting fave-align generated textgrids to txt using Convert_To_FAVE-align_Input_Left_phone_word.praat
+
+## Preprocess manually annotated files
+```{r}
+manualtxt <- list.files("/Volumes/data/projects/time/analysis/mono_left",
+                        pattern = "[0-9][0-9].txt$|rsr_new_speaker.txt|rsr_original_audio.txt", full.names = T)
+
+# codertxt <- list.files("/Users/jojohu/Documents/Time/data/brooke",
+#                         pattern = "[0-9][0-9].txt$|rsr_new_speaker.txt|rsr_original_audio.txt", full.names = T)
+# 
+# manualtxt <- append(manualtxt, codertxt)
+
+read_txt <- 
+function(file) {
+  file_name <- basename(file)
+  file_name <- str_extract(file_name, "\\S+(?=.txt?)")
+  
+  file <- read.csv(file,  sep ="\t", stringsAsFactors = F, header = F)
+  file[, "name"] <- file_name
+  file <- file[,c("V1", "V2", "V3", "V4", "V5", "name")]
+  
+  return(file)
+}
+
+# Only use when read_txt above throws an encoding error
+## Some manually transcribed fave-format .txt file used a different encoding
+read_more_file <-
+function(file) {
+  file_name <- basename(file)
+  file_name <- str_extract(file_name, "\\S+(?=.txt?)")
+  
+  file <- read.csv(file,  sep ="\t", stringsAsFactors = F, header = F, fileEncoding = "UTF-16")
+  file[, "name"] <- file_name
+  file <- file[,c("V1", "V2", "V3", "V4", "V5", "name")]
+  print("read_more_file ran")
+  return(file)
+}
+
+manualtxt1 <- list()
+manualtxt2 <- list()
+
+for (i in 1:length(manualtxt)){
+  print(i)
+  t <- try(read_txt(manualtxt[i]))
+  print(class(t))
+  if(class(t) == "try-error") {
+    manualtxt2[[i]] <- read_more_file(manualtxt[i])
+  } else {
+    manualtxt1[[i]] <- read_txt(manualtxt[i])
+    }
+}
+
+manualtxt1 <- do.call(rbind, manualtxt1)
+manualtxt2 <- do.call(rbind, manualtxt2)
+manualtxt <- rbind(manualtxt1, manualtxt2)
+```
+
+## Match sentence numbers
+```{r}
+library(tidyr)
+library(reshape2)
+library(dplyr)
+
+senMatch <- read.csv("/Users/jojohu/Documents/Time/stimuli/word_sentence_match.csv")
+
+singleWord <-
+  manualtxt %>%
+  tidyr::separate(V5, sep = " ", into = as.character(seq(1:15)))
+
+singleWord$annotated_sen <- manualtxt$V5
+
+singleWord$row_name <- row.names(singleWord)
+
+singleWordL <- melt(singleWord, id.vars = c("row_name", "name", "V1", "V2", "V3", "V4"))
+
+singleWordL <- merge(singleWordL, senMatch[,c("sentence", "key_word")], by.x = "value", by.y = "key_word", all.x = T)
+
+singleWordL <- merge(singleWordL, senMatch[,c("sentence", "second_key_word")], by.x = "value", by.y = "second_key_word", all.x = T)
+
+singleWordL <- merge(singleWordL, senMatch[,c("sentence", "third_key_word")], by.x = "value", by.y = "third_key_word", all.x = T)
+
+singleWordL$sentence.x <- coalesce(singleWordL$sentence.x, singleWordL$sentence.y)
+
+singleWordL$sentence <- coalesce(singleWordL$sentence.x, singleWordL$sentence)
+
+singleWordSen <-
+  singleWordL %>% 
+  filter(!is.na(singleWordL$sentence))
+
+singleWord <-
+  merge(singleWord, singleWordSen[, c("row_name", "name", "V1", "V2", "V3", "V4", "value", "sentence")], 
+        by = c("row_name", "name", "V1", "V2", "V3", "V4"), all.x = T)
+
+
+singleWord <- singleWord[-which(duplicated(singleWord[,c("row_name", "name", "V3", "V4", "annotated_sen", "sentence")])),]
+
+# Check whether any sentences were mistakenly matched twice (output should be 0)
+singleWord[which(duplicated(singleWord$row_name)),]
+
+manualDF <- unique(singleWord[,c("name", "V3", "V4", "sentence", "annotated_sen")])
+
+colnames(manualDF)[which(colnames(manualDF) %in% "V3")] <- "manualStart"
+colnames(manualDF)[which(colnames(manualDF) %in% "V4")] <- "manualEnd"
+
+notAdded <- manualDF[which(is.na(manualDF$sentence)),]
+```
+
+# Read in previsouly manually added sentences
+```{r, eval = F}
+## Drop sentences that are already manually added 
+addedSenList <- list.files("/Users/jojohu/Documents/Time/analysis/", 
+                           pattern = "add_sentence*", full.names = T)
+
+addedSenList <- lapply(addedSenList, read.csv)
+addedSen <- do.call(rbind, addedSenList)
+
+notAdded <- manualDF[which(!manualDF$name %in% unique(addedSen$name)),]
+notAdded <- notAdded[which(is.na(notAdded$sentence)),]
+```
+
+
+
+```{r}
+write.csv(notAdded, "/Users/jojohu/Documents/Time/analysis/no_sentence.csv")
+
+system2("open", "/Users/jojohu/Documents/Time/analysis/no_sentence.csv")
+```
+
+
+## Manually add sentences that cannot be assigned
+## Save as a seperate file called add_sentence.csv
+```{r}
+library(dplyr)
+
+addSen <- read.csv("/Users/jojohu/Documents/Time/analysis/add_sentence_final.csv")
+
+# addSenList <- list.files("/Users/jojohu/Documents/Time/analysis", 
+#                            pattern = "add_sentence*", full.names = T)
+
+# read_csv_file <- 
+#   function(file) {
+#     file_name <- basename(file)
+#     # Get file modified time
+#     updated_time <- file.info(file)$ctime
+#     
+#     file <- read.csv(file)
+#     
+#     file[, "file_name"] <- file_name
+#     file[, "updated_time"] <- updated_time
+#     
+#     return(file)
+#   }
+# 
+# addSen <- lapply(addSenList, read_csv_file)
+# addSen <- do.call(rbind, addSen)
+
+## Only keep the sentences that are manually added later in most recently modified files
+# addSen <- 
+#   addSen %>%
+#   arrange(updated_time)
+```
+
+
+```{r}
+# Try to get rid of duplicated files across add sentence files and only save the files in most up-to-date add sentence file but failed
+
+# temp <-
+#   addSen %>%
+#   group_by(file_name, updated_time) %>%
+#   summarise(strings = name %>% unique %>% sort %>% paste(collapse = ", ")) %>%
+#   arrange(updated_time) %>%
+#   select(-updated_time)
+# 
+# library("splitstackshape")
+# temp <- concat.split(temp, "strings", ",", drop = TRUE)
+# 
+# temp <-
+#   temp %>%
+#   tibble::rownames_to_column() %>%  
+#   pivot_longer(-rowname) %>% 
+#   pivot_wider(names_from=rowname, values_from=value)
+# 
+# colnames(temp)[2:ncol(temp)] <- letters[seq(1:(ncol(as.data.frame(temp))-1))]
+```
+
+
+```{r}
+manualDF <- manualDF[-which(is.na(manualDF$sentence)),]
+
+manualDF <- dplyr::bind_rows(manualDF, addSen[,-1])
+
+manualDF <- unique(manualDF)
+
+# Check to see the number of rows are still the same as the original dataframe after adding manually added sentence numbers (output should be TRUE'; as long as manual DF has more sentences, we are not missing sentences from manualtxt, it is okay)
+nrow(manualDF) == nrow(manualtxt)
+
+manualtxt <-
+  manualtxt %>%
+  dplyr::rename(manualStart = V3,
+                manualEnd = V4,
+                annotated_sen = V5) %>%
+  select(name, manualStart, manualEnd, annotated_sen)
+
+manualtxt %>%
+  group_by(name) %>%
+  dplyr::summarise(n = n()) %>%
+  filter(n > 16)
+
+manualDF %>%
+  group_by(name) %>%
+  dplyr::summarise(n = n()) %>%
+  filter(n > 16)
+
+dup_manualDF <- manualDF[which(duplicated(manualDF[,c("name", "manualStart", "manualEnd", "annotated_sen")])), 
+                         c("name", "manualStart", "manualEnd", "annotated_sen")]
+
+dup_manualDF$duplicated <- 1 
+
+manualDF <- merge(manualDF, dup_manualDF, all.x = T)
+
+dup_rows <- manualDF[which(manualDF$duplicated == 1),]
+```
+
+
+# Save the sentences that were matched twice
+```{r}
+write.csv(dup_rows, "/Users/jojohu/Documents/Time/analysis/dup_sentence.csv")
+
+system2("open", "/Users/jojohu/Documents/Time/analysis/dup_sentence.csv")
+```
+
+
+# Manual removal of wrong sentence match
+```{r}
+manualDF <- manualDF[-which(manualDF$duplicated == 1),]
+
+removed_sen <- read.csv("/Users/jojohu/Documents/Time/analysis/removed_dup_sentence_final.csv")
+
+manualDF <- rbind(manualDF, removed_sen[,-1])
+
+manualtxt$thisDF <- 1
+
+manualDF <- merge(manualDF, manualtxt, all.x = T)
+
+# At this point, the manualDF and manualtxt rows should be the same
+nrow(manualDF) == nrow(manualtxt)
+
+# Check whether these can be labelled with a sentence; mostly not transcribable or very wrong productions
+manualDF[which(is.na(manualDF$sentence)),]
+```
+
+
+# Remove empty sentence transcriptions
+```{r}
+manualDF <-
+  manualDF %>%
+  filter(str_detect(annotated_sen, "[:alpha:]")) %>%
+  mutate(manualEnd = str_remove(manualEnd, "[:alpha:]")) %>%
+  mutate(manualEnd = as.numeric(as.character(manualEnd)))
+```
+
+
+# Check if any participants have more than 16 sentences transcribed (wrong transcriptions that need to be checked)
+```{r}
+manualDF %>%
+  filter(!is.na(annotated_sen)) %>%
+  group_by(name) %>%
+  dplyr::summarise(n = n()) %>%
+  filter(n > 16)
+```
+
+
+
+## Assign sentence numbers to phone and word level transcription (preprocess)
+```{r}
+phonetxt <- list.files(path = "/Volumes/data/projects/time/analysis/mono_left/phone_textgrid",
+                        pattern = "_phone_word.txt$", full.names = T)
+
+read_txt <-
+function(file) {
+  file_name <- basename(file)
+  file_name <- str_extract(file_name, "\\S+(?=.txt?)")
+  
+  file <- read.csv(file,  sep ="\t", stringsAsFactors = F, header = F)
+  file[, "name"] <- file_name
+  file <- file[,c("V1", "V2", "V3", "V4", "V5", "name")]
+  
+  return(file)
+}
+
+phonetxt <- lapply(phonetxt, read_txt)
+phonetxt <- do.call(rbind, phonetxt)
+
+phonetxt <-
+  phonetxt %>% 
+  filter(V5 != "sp") %>%
+  select("V1", "V3", "V4", "V5", "name") %>%
+  dplyr::rename(c(tier = V1,
+                  wordStart = V3,
+                  wordEnd = V4, 
+                  word = V5))
+
+phonetxt$name <- str_extract(phonetxt$name, "\\S+(?=_phone_word?)")
+```
+
+
+## Now match sentence for the word level transcriptions
+**Praat has textgrid merge function which can directly merge the sentence tier with the phone and word tiers; but the advantage of the R script here is the number of the sentences can be extracted but do not need to be annotated again. In order to simply this process, will need to look up how to ouput sentence tier information when extracting the boundaries of the phone and word tier in praat (https://praat-users.yahoogroups.co.narkive.com/LQHpZy1c/extracting-labels-from-multiple-textgrid-tiers). And then the sentence tier can be used to match sentence number in R (still with some manual checking above). With the current boundary extracting praat script, only one tier label can be extracted. The pre-preprocessing steps will not be significantly reduced as the merging and extracting text from merged textgrids are still needed. But the chunk below is not.**
+```{r}
+manualDF <- unique(manualDF)
+manualDF[which(manualDF$name == "rsr_original_audio"), "name"] <- "rsr_original"
+# manualDF <- manualDF[-which(is.na(manualDF$sentence)),]
+# https://stackoverflow.com/questions/39536807/r-check-if-value-from-dataframe-is-within-range-other-dataframe
+
+# f <- function(vec, id) {
+#   if(length(.manualDF <- which(vec >= manualDF$manualStart & vec <= manualDF$manualEnd & id == manualDF$name))) .manualDF else NA
+# }
+# 
+# phonetxt$sentence <- manualDF$sentence[mapply(f, phonetxt$wordEnd, phonetxt$name)]
+# phonetxt$annotated_sen <- manualDF$annotated_sen[mapply(f, phonetxt$wordEnd, phonetxt$name)]
+
+# https://stackoverflow.com/questions/24480031/overlap-join-with-start-and-end-positions
+library(data.table)
+d1 <- manualDF[,c("name","manualStart", "manualEnd")]
+d2 <- phonetxt[,c("name", "wordStart", "wordEnd")]
+d1 <- data.table(d1)
+d2 <- data.table(d2)
+setkey(d1)
+
+
+matchedDFTemp <- foverlaps(d2, d1, by.x = names(d2), type = "within", mult = "first", nomatch = 0L)
+matchedDFTemp <- as.data.frame(matchedDFTemp)
+
+
+phonetxt <- unique(merge(phonetxt, matchedDFTemp, by.x = c("name", "wordStart", "wordEnd"), by.y = c("name", "wordStart", "wordEnd"), all.x = T))
+
+phonetxt <- unique(merge(phonetxt, manualDF[,c("name",  "manualStart", "manualEnd", "sentence")], 
+                     by.x = c("name", "manualStart", "manualEnd"), by.y = c("name",  "manualStart", "manualEnd"), all.x = T))
+
+if (nrow(phonetxt[-which(duplicated(phonetxt[,c("name", "word", "wordStart", "wordEnd")])),]) > 0) {
+  phonetxt <- phonetxt[-which(duplicated(phonetxt[,c("name", "word", "wordStart", "wordEnd")])),]
+}
+
+length(which(is.na(phonetxt$sentence)))
+
+write.csv(manualDF, "/Users/jojohu/Documents/Time/analysis/sentenceTime.csv")
+write.csv(phonetxt, "/Users/jojohu/Documents/Time/analysis/phoneTimewSen.csv")
+```
+
+```{r}
+unique(phonetxt$name)
+```
+
+
+# Another way of matching sentences. Rough estimation. Not helpful any more.
+```{r, eval = f}
+rowDiffT <- 
+  spB %>% 
+    group_by(part_id, task) %>%
+    mutate(difference=beg-lag(beg,default=first(beg)))
+
+# Only running this for control model talker condition
+
+rowDiffTC <- rowDiffT[which(str_detect(rowDiffT$part_id, "spoli_c|blast_c") & rowDiffT$task =="rsr1"),]
+
+rowDiffTModel <- rowDiffT[which(str_detect(rowDiffT$part_id, "rsr_orig")),]
+
+estimateSen <- function(DF, second) {
+    n = 0
+    cDF <- list()
+    for(i in 1:length(unique(DF$part_id))) {
+      n = n + 1
+      currentDF <- DF[which(DF$part_id == unique(DF$part_id)[i]),]
+      currentDF[which(currentDF$difference > second), "sentence_estimate"] <- 
+        seq(from = 2, to = length(which(currentDF$difference > second)) + 1)
+      
+      currentDF$sentence_estimate[1] <- 1
+      
+      cDF[[n]] <- currentDF
+    }
+  return(cDF)
+}
+
+rowDiffTC <- do.call(rbind, estimateSen(rowDiffTC, 5))
+rowDiffTModel <- do.call(rbind, estimateSen(rowDiffTModel, 5))
+
+rowDiffT <- rbind(rowDiffTC, rowDiffTModel)
+
+rowDiffT <- 
+  rowDiffT %>% 
+    tidyr::fill(sentence_estimate)
+```

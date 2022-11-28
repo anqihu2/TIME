@@ -1,0 +1,8 @@
+--speakernum
+
+--sex
+
+--name
+
+--age
+
