@@ -5,7 +5,6 @@ date: "9/25/2021"
 output: html_document
 ---
 
-## DO NOT PUT ON GITHUB
 ## Manually Change Date Formatting to YYYY-MM-DD in all three files (not necessary all the time; check the data output in the script here)
 ```{r}
 in_lab_date <-
