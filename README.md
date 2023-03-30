@@ -36,12 +36,11 @@ Input files in the command below: (Convert_To_FAVE-align_Input_Left.praat script
 
 
 ```python
-# TO DO: once the .wav files are all re-transcribed, add a python command here to only convert the not-transformed .Textgrid files to FAVE-align format and save the newly transformed files into the temp folder
 import parselmouth
 parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/Convert_To_FAVE-align_Input_Left.praat',
 '/Volumes/data/projects/time/analysis/clean_transcription','/Volumes/data/projects/time/analysis/temp/','.TextGrid')
 
-# TO DO: add a python script here to spell check all the FAVE-fommated .txt files in the temp folder
+
 
 # Move the .txt files that are not in mono_left folder yet from the temp folder to the mono_left folder or replace all the .txt files in there if transcriptions were redone
 import os
@@ -76,7 +75,7 @@ done
 ```
 
 ## If the immediately preceding chunk takes too long to loop through, use this to run individual subjects:
-python2 /Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/FAAValign.py /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022.wav /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022.txt /Volumes/data/projects/time/analysis/mono_left/blast_c_549_followup_rsr2_aug122022_phone_word.TextGrid
+python2 /Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/FAAValign.py /Volumes/data/projects/time/analysis/mono_left/spoli_c_644_rsr2_mar172021.wav /Volumes/data/projects/time/analysis/mono_left/spoli_c_644_rsr2_mar172021.txt /Volumes/data/projects/time/analysis/mono_left/spoli_c_644_rsr2_mar172021_phone_word.TextGrid
 
 ## Step 5.1: Force align the annotated data for model talkers 
 
@@ -183,8 +182,6 @@ Rscript /Users/jojohu/Documents/Time/scripts/setup_config.R
 
 ## Step 7: Extract formant values (Fave Extract)
 
-To DO: Set up a for loop for the command below in terminal through python; examine the tiers being extracted if child and model talker tiers are both in the force aligned TextGrid
-
 Input files in the command below: (.speaker file with unidentifiable demo; force aligned TextGrid; mono .wav file)
 
 ```bash
@@ -232,6 +229,8 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/mono_left/'):
 
 # Convert the forced-aligned output to txt files
 # Extremely slow when run on NAS
+import parselmouth
+
 parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/Convert_To_FAVE-align_Input_Left_phone_word.praat',
 '/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/temp/','/Users/jojohu/Documents/Time/data/mono_right', '_phone_word.TextGrid', '', 
 '/Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/temp/')
