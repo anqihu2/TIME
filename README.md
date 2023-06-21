@@ -23,7 +23,7 @@ parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/read_file.
 parselmouth.praat.run_file('/Users/jojohu/Documents/Time/praat_script/read_file.praat','/Volumes/data/projects/time/analysis/clean_data','.wav','/Volumes/data/projects/time/analysis/mono_left','/Volumes/data/projects/time/analysis/mono_right')
 
 
-No need to use praat wrapper? Call praat directly in terminal?
+
 
 ## Step 3: Manual annotation of data in Praat 
 
@@ -50,7 +50,7 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/temp/'):
       shutil.move(os.path.join('/Volumes/data/projects/time/temp/', file),os.path.join('/Volumes/data/projects/time/analysis/mono_left/', file))
 ```
 
-No need to use parselmouth? Directly call praat script in terminal with the same arguments?
+
 
 ## Step 5: Force align the annotated data for children (FAVE Align)
 
@@ -79,11 +79,11 @@ python2 /Users/jojohu/Documents/Time/FAVE-1.2.3/FAVE-align/FAAValign.py /Volumes
 
 ## Step 5.1: Force align the annotated data for model talkers 
 
-May be combined into one step with above.
+Recycle step 5 with just the model talkers' audio files. May be combined into one step with step 5.
 
 ## Step 6: Extract pitch values (prosodypro)
 
-## Step 6.1: Extract the phone level TextGrid for participants (this is not that necessary as th phone/word (1st/2nd) tier can be specified in prosodypro script)
+## Step 6.1: Extract the phone level TextGrid for participants 
 
 ```python
 # Move the files phone level textfrids that are not tier-removed to a temp folder
@@ -134,8 +134,6 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/mono_left/phone_tex
 
 ## Step 6.2: Extract the phone level ProsodyPro pitch
 
-**ProsodyPro script needs to be in the directory of the wav and TextGrid files. The directory$ variable is not working correctly in the ProsodyPro script for some reason. After choosing working directory, the path to the working directory is not used. If the ProsodyPro script is not with the Textgrids, then the script cannot find the TextGrid files generated from Fave-align in step 5 above.**
-
 
 ```python
 # Remove the .wav files that are already done with ProsodyPro analyses in the directory temporarily so that ProsodyPro doesn't need to be run again:
@@ -156,12 +154,15 @@ for file in os.listdir('/Volumes/data/projects/time/analysis/mono_left/'):
     
 ```
 
+**Now, open the prosodyPro script (our customized version: _ProsodyPro_modified_phone_level.praat') and run it**
+
+To download the original prosodyPro script: http://www.homepages.ucl.ac.uk/~uclyyix/ProsodyPro/
+
 While running this script, there will be things to enter in popped-up Praat window, expect to click "Next" for the script to loop through subjects.
 
-**Will this run? Nope, need to add parameters; just open the script and run it, that will be faster:**
-```python
-parselmouth.praat.run_file('/Volumes/data/projects/time/analysis/mono_left/_ProsodyPro_modified_phone_level.praat')
-```
+
+
+
 
 
 
@@ -170,7 +171,7 @@ parselmouth.praat.run_file('/Volumes/data/projects/time/analysis/mono_left/_Pros
 ```bash
 Rscript -e "rmarkdown::render('/Users/jojohu/Documents/Time/scripts/rsr_demo.Rmd')"
 ```
-Would this work?
+
 
 
 
@@ -195,7 +196,7 @@ for i in /Volumes/data/projects/time/analysis/mono_left/*.wav; do
   fi
 done
 ```
-https://groups.google.com/g/fave-users/c/a3T4xE6x88k/m/tCISVsxIDQAJ
+FAVE Extract Code: https://groups.google.com/g/fave-users/c/a3T4xE6x88k/m/tCISVsxIDQAJ
 python extractFormants.py -s speaker.speakerfile sound.wav tg.TextGrid output
 python extractFormants.py --speaker speaker.speakerfile sound.wav tg.TextGrid output
 
